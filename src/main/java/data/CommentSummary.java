@@ -1,4 +1,4 @@
-package crawl.data;
+package data;
 
 // https://club.jd.com/comment/productCommentSummaries.action?referenceIds=100008348542
 

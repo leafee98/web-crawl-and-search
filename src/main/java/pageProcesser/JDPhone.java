@@ -1,10 +1,10 @@
-package crawl.pageProcesser;
+package pageProcesser;
 
 import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
-import crawl.data.CommentSummary;
-import crawl.data.Phone;
-import crawl.data.Price;
+import data.CommentSummary;
+import data.Phone;
+import data.Price;
 import lombok.extern.log4j.Log4j;
 import us.codecraft.webmagic.Page;
 import us.codecraft.webmagic.Site;

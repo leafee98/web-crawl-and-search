@@ -1,4 +1,4 @@
-package crawl.data;
+package data;
 
 import lombok.Data;
 

@@ -1,6 +1,6 @@
-package crawl;
+package main;
 
-import crawl.pageProcesser.JDPhone;
+import pageProcesser.JDPhone;
 import lombok.extern.log4j.Log4j;
 import us.codecraft.webmagic.Spider;
 import us.codecraft.webmagic.pipeline.JsonFilePipeline;
