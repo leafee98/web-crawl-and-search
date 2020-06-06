@@ -15,7 +15,9 @@ import us.codecraft.webmagic.pipeline.Pipeline;
 
 import java.io.IOException;
 import java.nio.file.Paths;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 @Log4j
@@ -23,6 +25,7 @@ public class LucenePipeline implements Pipeline {
     private String indexDir;
     private IndexWriter writer;
     private Map<String, DocStruct> cacheDocs = new HashMap<>();
+    private List<String> cacheSkuId = new ArrayList<>();
 
     public LucenePipeline() throws Exception {
         this("lucene-index-dir");
@@ -62,10 +65,33 @@ public class LucenePipeline implements Pipeline {
         }
     }
 
-    private void storeDoc(Document document) {
+    private void putCache(String skuId, DocStruct doc) {
+        if (cacheDocs.size() > 200) {
+            cacheDocs.remove(cacheSkuId.get(0));
+            cacheSkuId.remove(0);
+        }
+
+        cacheDocs.put(skuId, doc);
+        cacheSkuId.add(skuId);
+    }
+
+    private void removeCache(String skuId) {
+        cacheSkuId.remove(skuId);
+        cacheDocs.remove(skuId);
+    }
+
+    /**
+     * store document and remove cache
+     * @param doc document to store
+     */
+    private void storeDoc(DocStruct doc) {
+        Document document = doc.doc;
+        String skuId = document.getField("SKUID").stringValue();
+        Term term = new Term("SKUID", skuId);
+
+        removeCache(skuId);
+
         try {
-            String skuId = document.getField("SKUID").stringValue();
-            Term term = new Term("SKUID", skuId);
             writer.updateDocument(term, document);
             writer.commit();
 
@@ -82,14 +108,13 @@ public class LucenePipeline implements Pipeline {
         DocStruct doc = cacheDocs.get(skuId);
         if (doc == null) {
             doc = new DocStruct();
-            cacheDocs.put(skuId, doc);
+            putCache(skuId, doc);
         }
 
         doc.addPhoneInfo(phone);
 
         if (doc.ready()) {
-            storeDoc(doc.doc);
-            cacheDocs.remove(skuId);
+            storeDoc(doc);
         }
     }
 
@@ -99,14 +124,13 @@ public class LucenePipeline implements Pipeline {
         DocStruct doc = cacheDocs.get(skuId);
         if (doc == null) {
             doc = new DocStruct();
-            cacheDocs.put(skuId, doc);
+            putCache(skuId, doc);
         }
 
         doc.addPriceInfo(price);
 
         if (doc.ready()) {
-            storeDoc(doc.doc);
-            cacheDocs.remove(skuId);
+            storeDoc(doc);
         }
     }
 
@@ -116,14 +140,13 @@ public class LucenePipeline implements Pipeline {
         DocStruct doc = cacheDocs.get(skuId);
         if (doc == null) {
             doc = new DocStruct();
-            cacheDocs.put(skuId, doc);
+            putCache(skuId, doc);
         }
 
         doc.addCommentInfo(comment);
 
         if (doc.ready()) {
-            storeDoc(doc.doc);
-            cacheDocs.remove(skuId);
+            storeDoc(doc);
         }
     }
 }
