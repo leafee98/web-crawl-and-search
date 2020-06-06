@@ -118,7 +118,7 @@ public class JDPhone implements PageProcessor {
         String json = tmpStr.substring(tmpStr.indexOf('['), tmpStr.lastIndexOf(']') + 1);
 
         List<CommentSummary> commentSummaryList = JSONObject.parseArray(json, CommentSummary.class);
-        page.putField("COMMENT_INFO", commentSummaryList);
+        page.putField("COMMENT_INFO", commentSummaryList.get(0));
         log.info(String.format("comment info get: skuId=%s, commentCount=%s",
                 commentSummaryList.get(0).getSkuId(), commentSummaryList.get(0).getCommentCount()));
     }
