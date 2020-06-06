@@ -6,13 +6,7 @@ import data.Phone;
 import data.Price;
 import lombok.extern.log4j.Log4j;
 import org.apache.lucene.document.Document;
-import org.apache.lucene.document.Field;
-import org.apache.lucene.document.StringField;
-import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.*;
-import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.TermQuery;
-import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
 import us.codecraft.webmagic.ResultItems;
@@ -21,13 +15,14 @@ import us.codecraft.webmagic.pipeline.Pipeline;
 
 import java.io.IOException;
 import java.nio.file.Paths;
-import java.util.List;
+import java.util.HashMap;
+import java.util.Map;
 
 @Log4j
 public class LucenePipeline implements Pipeline {
     private String indexDir;
     private IndexWriter writer;
-    private IndexSearcher searcher;
+    private Map<String, DocStruct> cacheDocs = new HashMap<>();
 
     public LucenePipeline() throws Exception {
         this("lucene-index-dir");
@@ -41,14 +36,15 @@ public class LucenePipeline implements Pipeline {
     @Override
     public void process(ResultItems resultItems, Task task) {
         if (resultItems.get("PHONE_INFO") != null) {
-            this.indexFieldPhone(resultItems);
-        } else if (resultItems.get("PRICE_INFO")) {
-            this.indexFieldPrice(resultItems);
-        } else if (resultItems.get("COMMENT_INFO")) {
-            this.indexFieldComment(resultItems);
+            this.handlePhone(resultItems);
+        } else if (resultItems.get("PRICE_INFO") != null) {
+            this.handlePrice(resultItems);
+        } else if (resultItems.get("COMMENT_INFO") != null) {
+            this.handleComment(resultItems);
         } else {
             log.warn("unrecognized field");
         }
+        log.info(String.format("%d document cached in memory", cacheDocs.size()));
     }
 
     private void initIndexWriter() throws Exception {
@@ -57,8 +53,6 @@ public class LucenePipeline implements Pipeline {
         try {
             dir = FSDirectory.open(Paths.get(this.indexDir));
             IndexWriterConfig config = new IndexWriterConfig(analyzer);
-            IndexReader indexReader = DirectoryReader.open(dir);
-            this.searcher = new IndexSearcher(indexReader);
             this.writer = new IndexWriter(dir, config);
         } catch (IOException e) {
             writer = null;
@@ -68,110 +62,68 @@ public class LucenePipeline implements Pipeline {
         }
     }
 
-    private Document getDocumentFromSkuId(String skuId) {
-        if (searcher == null)
-            return null;
-
-        Term term = new Term("SKUID", skuId);
-        TermQuery termQuery = new TermQuery(term);
+    private void storeDoc(Document document) {
         try {
-            TopDocs topDocs = searcher.search(termQuery, 1);
-            if (topDocs.scoreDocs.length < 1)
-                return null;
-            return searcher.doc(topDocs.scoreDocs[0].doc);
-        } catch (IOException e) {
-            e.printStackTrace();
-            log.error("fail to search document");
-            return null;
-        }
-    }
-
-    private void indexFieldPhone(ResultItems res) {
-        Object tmpObj = res.get("PHONE_INFO");
-        Phone phone;
-        if (tmpObj instanceof Phone) {
-            phone = (Phone)tmpObj;
-        } else {
-            log.warn("the object is not instance of Phone class");
-            return;
-        }
-
-        Document document = getDocumentFromSkuId(phone.getSkuId());
-        if (document == null)
-            document = new Document();
-
-        StringBuilder infoStr = new StringBuilder();
-        List<String> infoList = phone.getInfo();
-        for (String s : infoList)
-            infoStr.append(s);
-        Field info = new TextField("INFO", infoStr.toString(), Field.Store.YES);
-        Field title = new StringField("TITLE", phone.getTitle(), Field.Store.YES);
-        Field skuId = new StringField("SKUID", phone.getSkuId(), Field.Store.YES);
-        Field url = new StringField("URL", phone.getUrl(), Field.Store.YES);
-        try {
-            document.add(info);
-            document.add(title);
-            document.add(skuId);
-            document.add(url);
-            writer.updateDocument(new Term("SKUID", phone.getSkuId()), document);
+            String skuId = document.getField("SKUID").stringValue();
+            Term term = new Term("SKUID", skuId);
+            writer.updateDocument(term, document);
             writer.commit();
+
+            log.info(String.format("document with skuId '%s' stored", skuId));
         } catch (IOException e) {
-            log.error("fail to build index");
+            log.error("fail to store document");
             e.printStackTrace();
         }
     }
 
-    private void indexFieldPrice(ResultItems res) {
-        Object tmpObj = res.get("PRICE_INFO");
-        Price price;
-        if (tmpObj instanceof Price) {
-            price = (Price)tmpObj;
-        } else {
-            log.warn("the object is not instance of Price class");
-            return;
+    private void handlePhone(ResultItems res) {
+        Phone phone = res.get("PHONE_INFO");
+        String skuId = phone.getSkuId();
+        DocStruct doc = cacheDocs.get(skuId);
+        if (doc == null) {
+            doc = new DocStruct();
+            cacheDocs.put(skuId, doc);
         }
 
-        Document document = getDocumentFromSkuId(price.getId().substring(2));
-        if (document == null)
-            document = new Document();
+        doc.addPhoneInfo(phone);
 
-        Field priceField = new TextField("PRICE", price.getP(), Field.Store.YES);
-
-        try {
-            document.add(priceField);
-            writer.updateDocument(new Term("SKUID", price.getId()), document);
-            writer.commit();
-        } catch (IOException e) {
-            log.error("fail to build index");
-            e.printStackTrace();
+        if (doc.ready()) {
+            storeDoc(doc.doc);
+            cacheDocs.remove(skuId);
         }
     }
 
-    private void indexFieldComment(ResultItems res) {
-        Object tmpObj = res.get("COMMENT_INFO");
-        CommentSummary comment;
-        if (tmpObj instanceof CommentSummary) {
-            comment = (CommentSummary) tmpObj;
-        } else {
-            log.warn("the object is not instance of CommentSummary class");
-            return;
+    private void handlePrice(ResultItems res) {
+        Price price = res.get("PRICE_INFO");
+        String skuId = price.getId().substring(2);
+        DocStruct doc = cacheDocs.get(skuId);
+        if (doc == null) {
+            doc = new DocStruct();
+            cacheDocs.put(skuId, doc);
         }
 
-        Document document = getDocumentFromSkuId(comment.getSkuId());
-        if (document == null)
-            document = new Document();
+        doc.addPriceInfo(price);
 
-        Field goodRate = new StringField("GOOD_RATE", comment.getGoodRate(), Field.Store.YES);
-        Field commentCount = new StringField("COMMENT_COUNT", comment.getCommentCount(), Field.Store.YES);
+        if (doc.ready()) {
+            storeDoc(doc.doc);
+            cacheDocs.remove(skuId);
+        }
+    }
 
-        try {
-            document.add(goodRate);
-            document.add(commentCount);
-            writer.updateDocument(new Term("SKUID", comment.getSkuId()), document);
-            writer.commit();
-        } catch (IOException e) {
-            log.error("fail to build index");
-            e.printStackTrace();
+    private void handleComment(ResultItems res) {
+        CommentSummary comment = res.get("COMMENT_INFO");
+        String skuId = comment.getSkuId();
+        DocStruct doc = cacheDocs.get(skuId);
+        if (doc == null) {
+            doc = new DocStruct();
+            cacheDocs.put(skuId, doc);
+        }
+
+        doc.addCommentInfo(comment);
+
+        if (doc.ready()) {
+            storeDoc(doc.doc);
+            cacheDocs.remove(skuId);
         }
     }
 }

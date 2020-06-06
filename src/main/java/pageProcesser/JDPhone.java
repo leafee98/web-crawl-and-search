@@ -106,7 +106,6 @@ public class JDPhone implements PageProcessor {
             page.putField("PRICE_INFO", prices.get(0));
             log.info(String.format("price found: skuId=%s, price=%s",
                     prices.get(0).getId(), prices.get(0).getP()));
-            log.info("price found: " + prices.get(0).getP());
         }
     }
 
@@ -133,6 +132,8 @@ public class JDPhone implements PageProcessor {
             this.handlePrice(page);
         } else if (url.startsWith("https://club.jd.com/comment/")) {
             this.handleComments(page);
+        } else {
+            log.warn("unrecognized url: " + url);
         }
     }
 
