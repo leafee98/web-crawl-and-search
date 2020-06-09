@@ -1,6 +1,5 @@
 package search;
 
-import com.hankcs.hanlp.HanLP;
 import com.hankcs.lucene.HanLPIndexAnalyzer;
 import lombok.Getter;
 import lombok.extern.log4j.Log4j;
@@ -8,14 +7,12 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.queryparser.classic.ParseException;
-import org.apache.lucene.queryparser.classic.QueryParser;
-import org.apache.lucene.queryparser.surround.query.SrndQuery;
 import org.apache.lucene.search.*;
 import org.apache.lucene.store.FSDirectory;
 
 import java.io.IOException;
 import java.nio.file.Paths;
+import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -46,21 +43,25 @@ public class Searcher {
         }
     }
 
-    public List<Document> search(String field, String keyWord, int n) {
-        Query query = new RegexpQuery(new Term(field, ".*" + keyWord + ".*"));
+    public List<AbstractMap.SimpleEntry<Document, Float>> search(String field, String keyWord, int n) {
+        Query query = new TermQuery(new Term(field, keyWord));
         return search(query, n);
     }
 
-    public List<Document> search(Query query, int n) {
+    public List<AbstractMap.SimpleEntry<Document, Float>> search(Query query, int n) {
         try {
             TopDocs topDocs = searcher.search(query, n);
 
             ScoreDoc[] hits = topDocs.scoreDocs;
-            List<Document> documents = new ArrayList<>();
-            for (ScoreDoc hit : hits)
-                documents.add(searcher.doc(hit.doc));
+            List<AbstractMap.SimpleEntry<Document, Float>> result = new ArrayList<>();
+            for (ScoreDoc hit : hits) {
+                Document doc = searcher.doc(hit.doc);
+                float score = hit.score;
+                AbstractMap.SimpleEntry<Document, Float> entry = new AbstractMap.SimpleEntry<>(doc, score);
+                result.add(entry);
+            }
 
-            return documents;
+            return result;
         } catch (IOException e) {
             log.error("error occupied while searching", e);
         }

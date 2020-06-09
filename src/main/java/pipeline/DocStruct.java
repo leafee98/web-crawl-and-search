@@ -3,13 +3,14 @@ package pipeline;
 import data.CommentSummary;
 import data.Phone;
 import data.Price;
-import org.apache.lucene.document.Document;
-import org.apache.lucene.document.Field;
-import org.apache.lucene.document.StringField;
+import lombok.extern.log4j.Log4j;
+import org.apache.lucene.document.*;
 import org.apache.lucene.document.TextField;
 
+import java.awt.*;
 import java.util.List;
 
+@Log4j
 class DocStruct {
     Document doc;
     boolean phoneInfo = false;
@@ -34,7 +35,7 @@ class DocStruct {
         for (String s : infoList)
             infoStr.append(s);
         Field info = new TextField("INFO", infoStr.toString(), Field.Store.YES);
-        Field title = new StringField("TITLE", phone.getTitle(), Field.Store.YES);
+        Field title = new TextField("TITLE", phone.getTitle(), Field.Store.YES);
         Field skuId = new StringField("SKUID", phone.getSkuId(), Field.Store.YES);
         Field url = new StringField("URL", phone.getUrl(), Field.Store.YES);
 
@@ -47,10 +48,17 @@ class DocStruct {
     }
 
     public void addPriceInfo(Price price) {
-        Field priceField = new StringField("PRICE", price.getP(), Field.Store.YES);
-        this.doc.add(priceField);
+        try {
+            long priceVal = (long)(100 * Double.parseDouble(price.getP()));
+            Field priceIndField = new LongPoint("PRICE_IND", priceVal);
+            Field priceField = new StoredField("PRICE", priceVal);
+            this.doc.add(priceIndField);
+            this.doc.add(priceField);
 
-        this.priceInfo = true;
+            this.priceInfo = true;
+        } catch (NumberFormatException e) {
+            log.error("fail to parse string to double while add price info", e);
+        }
     }
 
     public void addCommentInfo(CommentSummary comment) {

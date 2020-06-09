@@ -18,7 +18,7 @@ import java.util.regex.Pattern;
 @Log4j
 public class JDPhone implements PageProcessor {
 
-    private Site site = Site.me().setRetrySleepTime(5000).setRetryTimes(3).setSleepTime(15000)
+    private Site site = Site.me().setRetrySleepTime(5000).setRetryTimes(3).setSleepTime(10000)
             .setUserAgent("Mozilla/5.0 (X11; Linux x86_64; rv:76.0) Gecko/20100101 Firefox/76.0");
 
     private void handleContents(Page page) {
